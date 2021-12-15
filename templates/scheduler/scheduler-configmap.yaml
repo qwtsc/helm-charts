@@ -1,0 +1,52 @@
+{{- if .Values.scheduler.enable }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ template "dragonfly.scheduler.fullname" . }}
+  labels:
+    app: {{ template "dragonfly.fullname" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+    component: {{ .Values.scheduler.name }}
+data:
+  scheduler.yaml: |-
+    deubug: {{ .Values.scheduler.config.debug }}
+    server:
+      port: {{ .Values.scheduler.containerPort }}
+      cacheDir: {{ .Values.scheduler.config.cacheDir }}
+      logDir: {{ .Values.scheduler.config.logDir }}
+    worker:
+{{ toYaml .Values.scheduler.config.worker | indent 6 }}
+    dynconfig:
+{{ toYaml .Values.scheduler.config.dynconfig | indent 6 }}
+    manager:
+      {{- if .Values.manager.enable }}
+      addr: {{ template "dragonfly.manager.fullname" . }}.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}:{{ .Values.manager.grpcPort }}
+      {{- else }}
+      addr: {{ .Values.externalManager.host }}:{{ .Values.externalManager.grpcPort }}
+      {{- end }}
+      schedulerClusterID: {{ .Values.scheduler.config.manager.schedulerClusterID }}
+      keepAlive:
+{{ toYaml .Values.scheduler.config.manager.keepAlive | indent 8 }}
+    job:
+      redis:
+        {{- if .Values.redis.enable }}
+        password: {{ .Values.redis.password }}
+        host: {{ .Release.Name }}-{{ default "redis" .Values.redis.fullname }}-master.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}
+        port: {{ .Values.redis.service.port }}
+        {{- else }}
+        password: {{ .Values.externalRedis.password }}
+        host: {{ .Values.externalRedis.host }}
+        port: {{ .Values.externalRedis.port }}
+        {{- end }}
+    {{- if .Values.scheduler.metrics.enable }}
+    metrics:
+      addr: ":8000"
+    {{- end }}
+    {{- if .Values.scheduler.config.jaeger }}
+    jaeger: {{ .Values.scheduler.config.jaeger }}
+    {{- else if .Values.jaeger.enable }}
+    jaeger: http://jaeger-all-in-one-collector.{{ $.Release.Namespace }}.svc.{{ $.Values.clusterDomain }}:14268/api/traces
+    {{- end }}
+{{- end }}
